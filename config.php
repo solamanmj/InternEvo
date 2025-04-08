@@ -14,9 +14,8 @@ try {
     $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     
 } catch(PDOException $e) {
-    // If connection fails, show error message
-    echo "Connection failed: " . $e->getMessage();
-    die();
+    error_log("Connection failed: " . $e->getMessage());
+    die("Connection failed. Please try again later.");
 }
 
 // Set default timezone

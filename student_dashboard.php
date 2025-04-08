@@ -58,14 +58,15 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #4f46e5;
-            --secondary: #6366f1;
-            --success: #10b981;
-            --info: #3b82f6;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --dark: #1f2937;
-            --light: #f3f4f6;
+            --primary: #2563eb;
+            --secondary: #3b82f6;
+            --dark-blue: #1e3a8a;
+            --darker-blue: #172554;
+            --light-blue: #60a5fa;
+            --white: #ffffff;
+            --light-gray: #f1f5f9;
+            --text-primary: #ffffff;
+            --text-secondary: #cbd5e1;
         }
 
         * {
@@ -76,12 +77,13 @@ try {
         }
 
         body {
-            background: #f8fafc;
+            background: var(--darker-blue);
             min-height: 100vh;
             overflow-x: hidden;
+            color: var(--text-primary);
         }
 
-        /* Animated Background */
+        /* Enhanced Background Animation */
         .dashboard-bg {
             position: fixed;
             top: 0;
@@ -90,220 +92,231 @@ try {
             height: 100%;
             z-index: -1;
             background: 
-                radial-gradient(circle at 0% 0%, rgba(79, 70, 229, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 0% 100%, rgba(79, 70, 229, 0.1) 0%, transparent 50%);
-            animation: gradientAnimation 15s ease infinite alternate;
+                radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.2) 0%, transparent 50%),
+                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.2) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(96, 165, 250, 0.2) 0%, transparent 50%),
+                radial-gradient(circle at 0% 100%, rgba(37, 99, 235, 0.2) 0%, transparent 50%);
+            animation: gradientAnimation 20s ease infinite;
+            background-size: 200% 200%;
         }
 
         @keyframes gradientAnimation {
-            0% { transform: scale(1); }
-            100% { transform: scale(1.1); }
+            0% { background-position: 0% 0%; }
+            25% { background-position: 100% 0%; }
+            50% { background-position: 100% 100%; }
+            75% { background-position: 0% 100%; }
+            100% { background-position: 0% 0%; }
         }
 
         /* Navbar Styling */
         .dashboard-nav {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(30, 58, 138, 0.95);
             backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .nav-brand {
             font-size: 1.8rem;
             font-weight: 800;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            background: linear-gradient(135deg, var(--white), var(--light-blue));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
         }
 
-        /* Dashboard Cards */
+        .nav-link {
+            color: var(--white) !important;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover {
+            color: var(--light-blue) !important;
+            transform: translateY(-2px);
+        }
+
+        /* Cards Styling */
         .dashboard-card {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(30, 58, 138, 0.8);
             backdrop-filter: blur(10px);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: hidden;
-            position: relative;
-        }
-
-        .dashboard-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transform: translateX(-100%);
-            transition: transform 0.6s;
-        }
-
-        .dashboard-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(79, 70, 229, 0.15);
-        }
-
-        .dashboard-card:hover::before {
-            transform: translateX(100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         }
 
         .card-header {
             background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            border-radius: 20px 20px 0 0;
-            padding: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         /* Stats Cards */
         .stats-card {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
+            background: rgba(30, 58, 138, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             transition: all 0.3s ease;
         }
 
         .stats-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(37, 99, 235, 0.3);
+            border: 1px solid rgba(96, 165, 250, 0.5);
         }
 
         .stats-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
             background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
+            box-shadow: 0 5px 15px rgba(37, 99, 235, 0.4);
         }
 
         /* Progress Bars */
         .progress {
-            height: 10px;
-            border-radius: 5px;
-            margin: 1rem 0;
-            background: #e2e8f0;
+            background: rgba(255, 255, 255, 0.1);
         }
 
         .progress-bar {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            border-radius: 5px;
-            transition: width 1s ease;
+            background: linear-gradient(135deg, var(--white), var(--light-blue));
+            box-shadow: 0 0 10px rgba(96, 165, 250, 0.5);
         }
 
-        /* Action Buttons */
-        .btn-dashboard {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            border: none;
-            padding: 0.8rem 1.5rem;
-            border-radius: 12px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-dashboard::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transform: translateX(-100%);
-            transition: transform 0.6s;
-        }
-
-        .btn-dashboard:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.2);
-            color: white;
-        }
-
-        .btn-dashboard:hover::before {
-            transform: translateX(100%);
-        }
-
-        /* Profile Section */
-        .profile-section {
-            background: white;
-            border-radius: 20px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-        }
-
-        .profile-image {
-            width: 120px;
-            height: 120px;
-            border-radius: 60px;
-            object-fit: cover;
-            border: 4px solid white;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Activity Timeline */
-        .timeline {
-            position: relative;
-            padding: 1rem 0;
-        }
-
+        /* Timeline */
         .timeline::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 2px;
-            height: 100%;
-            background: linear-gradient(to bottom, var(--primary), var(--secondary));
-        }
-
-        .timeline-item {
-            position: relative;
-            padding-left: 2rem;
-            margin-bottom: 1.5rem;
+            background: linear-gradient(to bottom, var(--white), var(--light-blue));
+            opacity: 0.3;
         }
 
         .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: -4px;
-            top: 0;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: white;
-            border: 2px solid var(--primary);
+            background: var(--darker-blue);
+            border: 2px solid var(--light-blue);
+            box-shadow: 0 0 10px rgba(96, 165, 250, 0.5);
         }
 
-        /* Custom Scrollbar */
+        /* Animations */
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(37, 99, 235, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(37, 99, 235, 0.5); }
+        }
+
+        .dashboard-card:hover, .stats-card:hover {
+            animation: glow 2s infinite;
+        }
+
+        /* Scrollbar */
         ::-webkit-scrollbar {
-            width: 10px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--light);
-            border-radius: 5px;
+            width: 8px;
+            background: var(--darker-blue);
         }
 
         ::-webkit-scrollbar-thumb {
             background: linear-gradient(var(--primary), var(--secondary));
-            border-radius: 5px;
+            border-radius: 4px;
         }
 
-        ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(var(--secondary), var(--primary));
+        /* Text Colors */
+        h5, h3, h4, p {
+            color: var(--white);
+        }
+
+        .text-muted {
+            color: var(--text-secondary) !important;
+        }
+
+        /* Hover Effects */
+        .timeline-item:hover {
+            background: rgba(37, 99, 235, 0.1);
+            border-radius: 8px;
+        }
+
+        /* Card Animations */
+        @keyframes shimmer {
+            0% { background-position: -100% 0; }
+            100% { background-position: 100% 0; }
+        }
+
+        .stats-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            background: linear-gradient(
+                to right,
+                transparent 0%,
+                rgba(255, 255, 255, 0.1) 50%,
+                transparent 100%
+            );
+            animation: shimmer 2s infinite;
+            background-size: 200% 100%;
+        }
+
+        /* Enhanced Glassmorphism */
+        .dashboard-card, .stats-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 15px;
+        }
+
+        /* White Accent Elements */
+        .card-header h4, .stats-card h5 {
+            position: relative;
+            display: inline-block;
+        }
+
+        .card-header h4::after, .stats-card h5::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 50%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.3);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .card-header h4:hover::after, .stats-card h5:hover::after {
+            transform: scaleX(1);
+        }
+
+        /* 4K Optimization Remains Unchanged */
+        @media (min-width: 3840px) {
+            .container {
+                max-width: 3000px;
+            }
+            
+            body {
+                font-size: 18px;
+            }
+
+            .nav-brand {
+                font-size: 2.5rem;
+            }
+
+            .card-header {
+                padding: 2rem;
+            }
+
+            .stats-icon {
+                width: 80px;
+                height: 80px;
+                font-size: 2rem;
+            }
+
+            .progress {
+                height: 15px;
+            }
+
+            .timeline-item {
+                padding-left: 3rem;
+            }
+
+            .timeline-item::before {
+                width: 15px;
+                height: 15px;
+            }
+        }
+
+        /* Smooth Scrolling */
+        html {
+            scroll-behavior: smooth;
         }
     </style>
 </head>
@@ -390,24 +403,9 @@ try {
             </div>
         </div>
 
-        <!-- Quick Actions -->
+        <!-- Recent Activity (removed Quick Actions and made Recent Activity full width) -->
         <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="dashboard-card">
-                    <div class="card-body p-4">
-                        <h5 class="card-title">Quick Actions</h5>
-                        <div class="d-grid gap-2">
-                            <a href="home.php" class="btn btn-dashboard">
-                                <i class="fas fa-search me-2"></i>Browse Internships
-                            </a>
-                            <a href="student_profile.php" class="btn btn-dashboard">
-                                <i class="fas fa-user-edit me-2"></i>Update Profile
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
+            <div class="col-12">
                 <div class="dashboard-card">
                     <div class="card-body p-4">
                         <h5 class="card-title">Recent Activity</h5>

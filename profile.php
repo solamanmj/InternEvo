@@ -163,6 +163,24 @@ try {
                     </div>
                 </div>
             </div>
+
+            <!-- Sidebar Navigation -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex flex-column nav-pills">
+                            <button class="nav-link active mb-2" id="v-pills-profile-tab" data-bs-toggle="pill" data-bs-target="#v-pills-profile" type="button">Profile</button>
+                            <button class="nav-link mb-2" id="v-pills-password-tab" data-bs-toggle="pill" data-bs-target="#v-pills-password" type="button">Change Password</button>
+                            <!-- Add this new link for Applications -->
+                            <a href="my_applications.php" class="nav-link mb-2">My Applications</a>
+                            <?php if ($user_type === 'company'): ?>
+                                <button class="nav-link mb-2" id="v-pills-company-tab" data-bs-toggle="pill" data-bs-target="#v-pills-company" type="button">Company Profile</button>
+                            <?php endif; ?>
+                            <a href="logout.php" class="nav-link text-danger">Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

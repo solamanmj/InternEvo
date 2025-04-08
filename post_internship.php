@@ -2,8 +2,12 @@
 session_start();
 require_once 'config.php';
 
-// Check if company is logged in
-if (!isset($_SESSION['company_id']) || !isset($_SESSION['is_company'])) {
+// Debug line to check session
+error_log("Session data: " . print_r($_SESSION, true));
+
+// Check if company is logged in - modified check
+if (!isset($_SESSION['company_id'])) {
+    error_log("Company not logged in, redirecting to login");
     header("Location: company_login.php");
     exit();
 }
@@ -11,31 +15,48 @@ if (!isset($_SESSION['company_id']) || !isset($_SESSION['is_company'])) {
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     try {
+        // Debug line to check POST data
+        error_log("POST data received: " . print_r($_POST, true));
+
+        // Validate stipend amount
+        $stipend = filter_var($_POST['stipend'], FILTER_VALIDATE_INT);
+        if ($stipend === false || $stipend < 1000 || $stipend > 100000) {
+            throw new Exception("Stipend must be between ₹1,000 and ₹100,000");
+        }
+
         $stmt = $conn->prepare("
             INSERT INTO internships (
                 company_id, title, description, requirements, 
                 location, duration, stipend, positions, 
-                application_deadline
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                application_deadline, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
         ");
 
-        $stmt->execute([
+        $result = $stmt->execute([
             $_SESSION['company_id'],
             $_POST['title'],
             $_POST['description'],
             $_POST['requirements'],
             $_POST['location'],
             $_POST['duration'],
-            $_POST['stipend'],
+            $stipend,
             $_POST['positions'],
             $_POST['application_deadline']
         ]);
 
-        $_SESSION['success'] = "Internship posted successfully!";
-        header("Location: company_dashboard.php");
-        exit();
+        if ($result) {
+            $_SESSION['success'] = "Internship posted successfully!";
+            header("Location: company_dashboard.php");
+            exit();
+        } else {
+            throw new Exception("Failed to insert data");
+        }
     } catch(PDOException $e) {
-        $_SESSION['error'] = "Error posting internship: " . $e->getMessage();
+        error_log("Database error: " . $e->getMessage());
+        $_SESSION['error'] = "Error posting internship. Please try again.";
+    } catch(Exception $e) {
+        error_log("General error: " . $e->getMessage());
+        $_SESSION['error'] = "Error posting internship. Please try again.";
     }
 }
 ?>
@@ -52,35 +73,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <style>
         body {
-            background: #1a1c23;
-            color: #e3e3e3;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e3f2fd 100%);
+            color: #2c3e50;
+            min-height: 100vh;
         }
 
         /* Main Container Styling */
         .post-internship-container {
             padding: 40px 0;
             min-height: 100vh;
-            background: linear-gradient(135deg, #1a1c23 0%, #2c2f3a 100%);
         }
 
         /* Form Card Styling */
         .form-card {
-            background: #2c2f3a;
-            border-radius: 20px;
+            background: #ffffff;
+            border-radius: 15px;
             padding: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(0, 0, 0, 0.08);
             margin-bottom: 30px;
         }
 
         /* Section Headers */
         .section-header {
-            color: #4e73df;
+            color: #1565c0;
             font-size: 2.2rem;
             font-weight: 600;
             margin-bottom: 30px;
             text-align: center;
-            text-shadow: 0 0 10px rgba(78, 115, 223, 0.3);
         }
 
         /* Form Group Styling */
@@ -89,7 +109,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         .form-label {
-            color: #8a8d98;
+            color: #2c3e50;
             font-weight: 500;
             margin-bottom: 10px;
             font-size: 0.95rem;
@@ -97,178 +117,98 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         /* Input Fields */
         .form-control, .form-select {
-            background: #1a1c23;
-            border: 2px solid rgba(78, 115, 223, 0.2);
-            border-radius: 12px;
-            color: #e3e3e3;
+            background: #ffffff;
+            border: 2px solid #e3f2fd;
+            border-radius: 10px;
+            color: #2c3e50;
             padding: 12px 20px;
             transition: all 0.3s ease;
         }
 
         .form-control:focus, .form-select:focus {
-            background: #1a1c23;
-            border-color: #4e73df;
-            box-shadow: 0 0 15px rgba(78, 115, 223, 0.2);
-            color: #ffffff;
+            background: #ffffff;
+            border-color: #1565c0;
+            box-shadow: 0 0 15px rgba(21, 101, 192, 0.1);
+            color: #2c3e50;
         }
 
         /* Placeholder Styling */
         ::placeholder {
-            color: #6c757d;
+            color: #95a5a6;
             opacity: 0.7;
         }
 
         /* Rich Text Editor */
-        .tox-tinymce {
-            border-radius: 12px !important;
-            border: 2px solid rgba(78, 115, 223, 0.2) !important;
-            background: #1a1c23 !important;
+        .editor {
+            background: #ffffff;
+            border: 2px solid #e3f2fd;
+            border-radius: 10px;
+            margin-bottom: 20px;
         }
 
-        .tox .tox-toolbar {
-            background: #2c2f3a !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+        .ql-toolbar {
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            border-bottom: 1px solid #e3f2fd;
+            background: #f8f9fa;
+        }
+
+        .ql-container {
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+            background: #ffffff;
         }
 
         /* Submit Button */
-        .btn-submit {
-            background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+        .btn-post {
+            background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
             color: white;
             border: none;
-            border-radius: 12px;
+            border-radius: 10px;
             padding: 15px 30px;
             font-size: 1.1rem;
             font-weight: 600;
-            width: 100%;
-            margin-top: 20px;
             transition: all 0.3s ease;
         }
 
-        .btn-submit:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(78, 115, 223, 0.3);
+        .btn-post:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(21, 101, 192, 0.3);
+            color: white;
         }
 
-        /* Card Hover Effect */
-        .form-card {
-            transition: all 0.3s ease;
-        }
-
-        .form-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
-        }
-
-        /* Input Groups */
-        .input-group {
-            background: #1a1c23;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        .input-group-text {
-            background: #2c2f3a;
+        /* Card Styling */
+        .card {
+            background: #ffffff;
             border: none;
-            color: #4e73df;
-            padding: 0 20px;
-        }
-
-        /* Custom Select Styling */
-        .form-select {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%234e73df' viewBox='0 0 16 16'%3E%3Cpath d='M8 10.5l4-4H4l4 4z'/%3E%3C/svg%3E");
-        }
-
-        /* Required Field Indicator */
-        .required-field::after {
-            content: '*';
-            color: #dc3545;
-            margin-left: 5px;
-        }
-
-        /* Section Dividers */
-        .section-divider {
-            height: 1px;
-            background: linear-gradient(to right, transparent, rgba(78, 115, 223, 0.3), transparent);
-            margin: 30px 0;
-        }
-
-        /* Form Sections */
-        .form-section {
-            padding: 20px;
             border-radius: 15px;
-            background: rgba(78, 115, 223, 0.05);
-            margin-bottom: 25px;
-            border: 1px solid rgba(78, 115, 223, 0.1);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
         }
 
-        .form-section-title {
-            color: #4e73df;
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid rgba(78, 115, 223, 0.2);
+        .card-body {
+            padding: 2rem;
         }
 
-        /* Checkbox and Radio Styling */
-        .form-check-input {
-            background-color: #1a1c23;
-            border-color: rgba(78, 115, 223, 0.3);
+        /* Alert Styling */
+        .alert {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
         }
 
-        .form-check-input:checked {
-            background-color: #4e73df;
-            border-color: #4e73df;
-        }
-
-        .form-check-label {
-            color: #8a8d98;
-        }
-
-        /* Help Text */
-        .form-text {
-            color: #6c757d;
-            font-size: 0.85rem;
-            margin-top: 5px;
-        }
-
-        /* Error States */
-        .is-invalid {
-            border-color: #dc3545 !important;
-        }
-
-        .invalid-feedback {
-            color: #dc3545;
-            font-size: 0.85rem;
-            margin-top: 5px;
-        }
-
-        /* Success Message */
         .alert-success {
-            background: rgba(40, 167, 69, 0.1);
-            border: 1px solid rgba(40, 167, 69, 0.2);
-            color: #28a745;
-            border-radius: 12px;
-            padding: 15px 20px;
+            background: #e3f2fd;
+            color: #1565c0;
+            border-left: 4px solid #1565c0;
         }
 
-        /* Animation Effects */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .alert-danger {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #c62828;
         }
 
-        .form-card {
-            animation: fadeInUp 0.5s ease forwards;
-        }
-
-        /* Responsive Design */
+        /* Responsive Adjustments */
         @media (max-width: 768px) {
             .form-card {
                 padding: 20px;
@@ -278,7 +218,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 font-size: 1.8rem;
             }
 
-            .btn-submit {
+            .btn-post {
                 padding: 12px 25px;
                 font-size: 1rem;
             }
@@ -290,39 +230,63 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         ::-webkit-scrollbar-track {
-            background: #1a1c23;
+            background: #f8f9fa;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #4e73df;
+            background: #1565c0;
             border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #224abe;
+            background: #0d47a1;
         }
 
-        /* Neon Glow Effects */
-        .neon-glow {
+        /* Hover Effects */
+        .hover-effect {
+            transition: transform 0.3s ease;
+        }
+
+        .hover-effect:hover {
+            transform: translateY(-2px);
+        }
+
+        .expired-internship {
+            opacity: 0.8;
+        }
+
+        .expired-internship .card {
             position: relative;
+            overflow: hidden;
+            border: 1px solid #dc3545;
         }
 
-        .neon-glow::after {
-            content: '';
+        .expired-banner {
             position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            background: linear-gradient(45deg, #4e73df, #224abe);
-            border-radius: 14px;
-            z-index: -1;
-            opacity: 0;
-            transition: opacity 0.3s ease;
+            top: 0;
+            right: 0;
+            background-color: #dc3545;
+            color: white;
+            padding: 5px 15px;
+            font-size: 0.8rem;
+            transform: rotate(45deg) translate(15px, -15px);
+            transform-origin: top right;
+            z-index: 10;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
-        .neon-glow:hover::after {
-            opacity: 0.3;
+        .expired-internship .btn-apply {
+            background: #6c757d;
+        }
+
+        .expired-internship .btn-secondary {
+            background: #6c757d;
+            border-color: #6c757d;
+        }
+
+        .text-danger {
+            color: #dc3545!important;
         }
     </style>
 </head>
@@ -381,8 +345,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Stipend</label>
-                                    <input type="text" name="stipend" class="form-control" required>
+                                    <label class="form-label">Stipend (₹)*</label>
+                                    <input type="number" 
+                                           name="stipend" 
+                                           class="form-control" 
+                                           required 
+                                           min="1000" 
+                                           max="100000" 
+                                           placeholder="Enter amount between ₹1,000 - ₹100,000"
+                                           oninput="validateStipend(this)">
+                                    <div class="invalid-feedback">
+                                        Please enter a valid stipend amount between ₹1,000 and ₹100,000
+                                    </div>
                                 </div>
 
                                 <div class="col-md-6 mb-3">
@@ -431,6 +405,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Set minimum date for deadline
         var today = new Date().toISOString().split('T')[0];
         document.querySelector('input[type="date"]').min = today;
+
+        function validateStipend(input) {
+            const min = 1000;
+            const max = 100000;
+            const value = parseInt(input.value);
+            
+            if (value < min) {
+                input.setCustomValidity(`Stipend must be at least ₹${min}`);
+            } else if (value > max) {
+                input.setCustomValidity(`Stipend cannot exceed ₹${max}`);
+            } else {
+                input.setCustomValidity('');
+            }
+            
+            input.reportValidity();
+        }
+
+        // Format the stipend with commas while typing
+        document.querySelector('input[name="stipend"]').addEventListener('input', function(e) {
+            let value = this.value.replace(/,/g, '');
+            if (value.length > 0) {
+                value = parseInt(value).toLocaleString('en-IN');
+                this.value = value.replace(/,/g, ''); // Remove commas for form submission
+            }
+        });
     </script>
 </body>
 </html> 

@@ -1,26 +1,135 @@
 <?php
 session_start();
-error_log("Dashboard access - Session data: " . print_r($_SESSION, true));
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+require_once 'config.php';
 
-if (!isset($_SESSION['logged_in']) || $_SESSION['user_type'] !== 'company') {
-    error_log("Access denied - Not logged in or not company");
-    header("Location: company_login.php");
+// Use company_id from session
+$company_id = $_SESSION['company_id'] ?? null;
+
+if (!isset($_SESSION['logged_in']) || !$company_id) {
+    header("Location: login.php");
     exit();
 }
 
-require_once 'config.php';
+// Handle application status updates
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['application_id']) && isset($_POST['status'])) {
+    try {
+        // Validate status
+        $allowed_statuses = ['approved', 'rejected'];
+        $new_status = $_POST['status'];
+        $application_id = $_POST['application_id'];
 
-// Fetch company's posted internships
+        if (in_array($new_status, $allowed_statuses)) {
+            // First verify this application belongs to the company's internship
+            $verify_query = "
+                SELECT ia.id 
+                FROM internship_applications ia
+                JOIN internships i ON ia.internship_id = i.id
+                WHERE ia.id = ? AND i.company_id = ?
+            ";
+            $verify_stmt = $conn->prepare($verify_query);
+            $verify_stmt->execute([$application_id, $company_id]);
+            
+            if ($verify_stmt->rowCount() > 0) {
+                // Update the application status
+                $update_query = "
+                    UPDATE internship_applications 
+                    SET status = ?, 
+                        updated_at = NOW()
+                    WHERE id = ?
+                ";
+                $update_stmt = $conn->prepare($update_query);
+                $update_stmt->execute([$new_status, $application_id]);
+
+                if ($update_stmt->rowCount() > 0) {
+                    $_SESSION['success'] = "Application successfully " . $new_status;
+                } else {
+                    $_SESSION['error'] = "Failed to update application status";
+                }
+            } else {
+                $_SESSION['error'] = "Invalid application";
+            }
+        } else {
+            $_SESSION['error'] = "Invalid status";
+        }
+    } catch(PDOException $e) {
+        error_log("Error updating application: " . $e->getMessage());
+        $_SESSION['error'] = "An error occurred while updating the application";
+    }
+    
+    // Redirect to prevent form resubmission
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit();
+}
+
+// Get current status filter from URL
+$status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
+
+// Initialize application count variables with default values
+$total_count = 0;
+$pending_count = 0;
+$approved_count = 0;
+$rejected_count = 0;
+
+// Only fetch application counts if a company is logged in
+if (isset($_SESSION['company_id'])) {
+    $company_id = $_SESSION['company_id'];
+    
+    try {
+        $count_query = "
+            SELECT ia.status, COUNT(*) as count
+            FROM internship_applications ia
+            JOIN internships i ON ia.internship_id = i.id
+            WHERE i.company_id = :company_id
+            GROUP BY ia.status
+        ";
+        $count_stmt = $conn->prepare($count_query);
+        $count_stmt->execute(['company_id' => $company_id]);
+        $status_counts = array_column($count_stmt->fetchAll(PDO::FETCH_ASSOC), 'count', 'status');
+        
+        // Set default counts if not present
+        $pending_count = $status_counts['pending'] ?? 0;
+        $approved_count = $status_counts['approved'] ?? 0;
+        $rejected_count = $status_counts['rejected'] ?? 0;
+        $total_count = $pending_count + $approved_count + $rejected_count;
+    } catch(PDOException $e) {
+        error_log("Error fetching counts: " . $e->getMessage());
+    }
+}
+
+// Fetch applications based on status filter
 try {
-    $stmt = $conn->prepare("
-        SELECT * FROM internships 
-        WHERE company_id = ? 
-        ORDER BY created_at DESC
-    ");
-    $stmt->execute([$_SESSION['company_id']]);
-    $internships = $stmt->fetchAll();
+    $query = "
+        SELECT 
+            ia.*,
+            i.title AS internship_title,
+            sp.first_name,
+            sp.last_name,
+            sp.email,
+            sp.college,
+            sp.course
+        FROM internships i
+        JOIN internship_applications ia ON i.id = ia.internship_id
+        JOIN student_profiles sp ON ia.student_id = sp.user_id
+        WHERE i.company_id = :company_id
+        " . ($status_filter !== 'all' ? "AND ia.status = :status" : "") . "
+        ORDER BY ia.created_at DESC
+    ";
+    
+    $stmt = $conn->prepare($query);
+    $params = ['company_id' => $company_id];
+    
+    if ($status_filter !== 'all') {
+        $params['status'] = $status_filter;
+    }
+    
+    $stmt->execute($params);
+    $applications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
 } catch(PDOException $e) {
-    $_SESSION['error'] = "Error fetching internships: " . $e->getMessage();
+    error_log("Error fetching applications: " . $e->getMessage());
+    $applications = [];
 }
 ?>
 
@@ -29,7 +138,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Company Dashboard - InternEvo</title>
+    <title>Company Dashboard - Applications</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -250,6 +359,47 @@ try {
                 left: 0;
             }
         }
+
+        .table {
+            font-size: 0.9rem;
+        }
+        
+        .table td, .table th {
+            padding: 1rem;
+        }
+        
+        .badge {
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+        }
+        
+        .btn-sm {
+            padding: 0.4rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        .application-card {
+            transition: transform 0.2s;
+            border-left: 4px solid #ddd;
+        }
+        .application-card:hover {
+            transform: translateX(5px);
+        }
+        .application-card.status-pending { border-left-color: #ffc107; }
+        .application-card.status-approved { border-left-color: #28a745; }
+        .application-card.status-rejected { border-left-color: #dc3545; }
+        .status-badge {
+            font-size: 0.8rem;
+            padding: 0.5em 1em;
+        }
+
+        .status-card {
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+        .status-card:hover {
+            transform: translateY(-5px);
+        }
     </style>
 </head>
 <body>
@@ -280,24 +430,21 @@ try {
             <div class="col-md-3 col-lg-2 sidebar p-3">
                 <div class="list-group">
                     <a href="#" class="list-group-item list-group-item-action active">
-                        <i class="fas fa-clipboard-list me-2"></i>Internships
+                        <i class="fas fa-dashboard me-2"></i>Dashboard
                     </a>
-                    <a href="applications.php" class="list-group-item list-group-item-action">
-                        <i class="fas fa-users me-2"></i>Applications
+                    <a href="post_internship.php" class="list-group-item list-group-item-action">
+                        <i class="fas fa-plus-circle me-2"></i>Post Internship
                     </a>
-                    <a href="company_profile.php" class="list-group-item list-group-item-action">
-                        <i class="fas fa-building me-2"></i>Company Profile
-                    </a>
+                    <a href="manage_internships.php" class="list-group-item list-group-item-action">
+    <i class="fas fa-list me-2"></i>Manage Internships
+</a>
                 </div>
             </div>
 
             <!-- Main Content -->
             <div class="col-md-9 col-lg-10 p-4">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2>Manage Internships</h2>
-                    <a href="post_internship.php" class="btn btn-post">
-                        <i class="fas fa-plus me-2"></i>Post New Internship
-                    </a>
+                <div class="mb-4">
+                    <h2>Internship Applications</h2>
                 </div>
 
                 <?php if (isset($_SESSION['success'])): ?>
@@ -309,49 +456,142 @@ try {
                     </div>
                 <?php endif; ?>
 
+                <?php if (isset($_SESSION['error'])): ?>
+                    <div class="alert alert-danger">
+                        <?php 
+                        echo $_SESSION['error'];
+                        unset($_SESSION['error']);
+                        ?>
+                    </div>
+                <?php endif; ?>
+
                 <!-- Internships Grid -->
-                <div class="row g-4">
-                    <?php if (!empty($internships)): ?>
-                        <?php foreach ($internships as $internship): ?>
-                            <div class="col-md-6 col-lg-4">
-                                <div class="card internship-card h-100">
-                                    <div class="card-body">
-                                        <h5 class="card-title"><?php echo htmlspecialchars($internship['title']); ?></h5>
-                                        <p class="card-text text-muted">
-                                            <i class="fas fa-map-marker-alt me-2"></i><?php echo htmlspecialchars($internship['location']); ?>
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div>
+                                    <h4 class="mb-0">Recent Applications</h4>
+                                    <p class="text-muted mb-0">View and manage all internship applications</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <a href="?status=all" class="text-decoration-none">
+                            <div class="card status-card <?php echo $status_filter === 'all' ? 'border-primary' : ''; ?>">
+                                <div class="card-body text-center">
+                                    <h3 class="display-4"><?php echo $total_count; ?></h3>
+                                    <p class="text-muted mb-0">Total Applications</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="?status=pending" class="text-decoration-none">
+                            <div class="card status-card <?php echo $status_filter === 'pending' ? 'border-warning' : ''; ?>">
+                                <div class="card-body text-center">
+                                    <h3 class="display-4 text-warning"><?php echo $pending_count; ?></h3>
+                                    <p class="text-muted mb-0">Pending</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="?status=approved" class="text-decoration-none">
+                            <div class="card status-card <?php echo $status_filter === 'approved' ? 'border-success' : ''; ?>">
+                                <div class="card-body text-center">
+                                    <h3 class="display-4 text-success"><?php echo $approved_count; ?></h3>
+                                    <p class="text-muted mb-0">Approved</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="?status=rejected" class="text-decoration-none">
+                            <div class="card status-card <?php echo $status_filter === 'rejected' ? 'border-danger' : ''; ?>">
+                                <div class="card-body text-center">
+                                    <h3 class="display-4 text-danger"><?php echo $rejected_count; ?></h3>
+                                    <p class="text-muted mb-0">Rejected</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Applications List -->
+                <?php if (empty($applications)): ?>
+                    <div class="alert alert-info">
+                        <h4><i class="fas fa-info-circle me-2"></i>No Applications Found</h4>
+                        <p>
+                            <?php echo $status_filter !== 'all' ? 
+                                "No " . $status_filter . " applications found." : 
+                                "There are currently no applications for your internships."; ?>
+                        </p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($applications as $app): ?>
+                        <div class="card application-card status-<?php echo htmlspecialchars($app['status']); ?> mb-3">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <h5 class="card-title"><?php echo htmlspecialchars($app['first_name'] . ' ' . $app['last_name']); ?></h5>
+                                        <p class="text-muted mb-1"><?php echo htmlspecialchars($app['email']); ?></p>
+                                        <p class="mb-1">
+                                            <strong>Applied for:</strong> <?php echo htmlspecialchars($app['internship_title']); ?>
                                         </p>
-                                        <p class="card-text">
-                                            <small class="text-muted">
-                                                <i class="fas fa-clock me-2"></i>Duration: <?php echo htmlspecialchars($internship['duration']); ?>
-                                            </small>
+                                        <p class="mb-1">
+                                            <strong>Expected Salary:</strong> ₹<?php echo htmlspecialchars($app['expected_salary']); ?>
                                         </p>
-                                        <p class="card-text">
-                                            <small class="text-muted">
-                                                <i class="fas fa-users me-2"></i>Applications: 
-                                                <?php echo $internship['application_count'] ?? 0; ?>
-                                            </small>
-                                        </p>
-                                        <div class="mt-3">
-                                            <a href="edit_internship.php?id=<?php echo $internship['id']; ?>" class="btn btn-sm btn-outline-primary me-2">
-                                                <i class="fas fa-edit"></i> Edit
+                                    </div>
+                                    <div class="col-md-4">
+                                        <p class="mb-1"><strong>College:</strong> <?php echo htmlspecialchars($app['college']); ?></p>
+                                        <p class="mb-1"><strong>Course:</strong> <?php echo htmlspecialchars($app['course']); ?></p>
+                                        <p class="mb-1"><strong>Skills:</strong> <?php echo htmlspecialchars($app['skills']); ?></p>
+                                        
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <?php if ($app['status'] === 'pending'): ?>
+                                            <form method="POST" class="mb-2">
+                                                <input type="hidden" name="application_id" value="<?php echo $app['id']; ?>">
+                                                <button type="submit" name="status" value="approved" class="btn btn-success btn-sm">
+                                                    <i class="fas fa-check me-1"></i>Approve
+                                                </button>
+                                                <button type="submit" name="status" value="rejected" class="btn btn-danger btn-sm">
+                                                    <i class="fas fa-times me-1"></i>Reject
+                                                </button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span class="badge bg-<?php echo $app['status'] === 'approved' ? 'success' : 'danger'; ?>">
+                                                <?php echo ucfirst($app['status']); ?>
+                                            </span>
+                                        <?php endif; ?>
+                                        
+                                        <?php if ($app['resume_path']): ?>
+                                            <a href="<?php echo htmlspecialchars($app['resume_path']); ?>" 
+                                               class="btn btn-outline-primary btn-sm mt-2" 
+                                               target="_blank">
+                                                <i class="fas fa-file-pdf me-1"></i>View Resume
                                             </a>
-                                            <a href="view_applications.php?internship_id=<?php echo $internship['id']; ?>" class="btn btn-sm btn-outline-success">
-                                                <i class="fas fa-eye"></i> View Applications
+                                        <?php endif; ?>
+                                        
+                                        <?php if ($app['portfolio_url']): ?>
+                                            <a href="<?php echo htmlspecialchars($app['portfolio_url']); ?>" 
+                                               class="btn btn-outline-info btn-sm mt-2"
+                                               target="_blank">
+                                                <i class="fas fa-globe me-1"></i>Portfolio
                                             </a>
-                                        </div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <div class="col-12">
-                            <div class="alert alert-info">
-                                <i class="fas fa-info-circle me-2"></i>No internships posted yet. 
-                                <a href="post_internship.php">Post your first internship</a>
-                            </div>
                         </div>
-                    <?php endif; ?>
-                </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>

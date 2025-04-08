@@ -125,6 +125,8 @@ if ($search || $industry_id || $location || $duration) {
         $total_pages = 0;
     }
 }
+
+
 ?>
 
 <!DOCTYPE html>
@@ -349,6 +351,12 @@ if ($search || $industry_id || $location || $duration) {
                                        class="btn btn-apply w-100 mb-2">
                                         <i class="fas fa-eye me-2"></i>View Details
                                     </a>
+                                    <?php if(isset($_SESSION['user_id'])): ?>
+                                        <a href="apply_internship.php?id=<?php echo $internship['id']; ?>" 
+                                           class="btn btn-apply w-100 mb-2">
+                                            <i class="fas fa-paper-plane me-2"></i>Apply Now
+                                        </a>
+                                    <?php endif; ?>
                                     <p class="deadline-text small">
                                         <i class="fas fa-hourglass-half me-1"></i>
                                         Apply by: <?php echo date('d M Y', strtotime($internship['application_deadline'])); ?>
@@ -370,6 +378,7 @@ if ($search || $industry_id || $location || $duration) {
             </div>
         <?php endif; ?>
     </div>
+
 
     <style>
         .hero-section {
@@ -457,6 +466,50 @@ if ($search || $industry_id || $location || $duration) {
             transform: translateY(-2px);
             transition: all 0.3s ease;
         }
+
+        .btn-success {
+            background-color: #28a745;
+            border-color: #28a745;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .btn-success:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+            transform: translateY(-2px);
+        }
+
+        .btn-outline-primary {
+            transition: all 0.3s ease;
+        }
+
+        .btn-outline-primary:hover {
+            transform: translateY(-2px);
+        }
+
+        .status-card {
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .status-card .display-4 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-card p {
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        /* Status-specific colors */
+        .status-card.border-primary { border-left: 4px solid #4e73df; }
+        .status-card.border-warning { border-left: 4px solid #f6c23e; }
+        .status-card.border-success { border-left: 4px solid #1cc88a; }
+        .status-card.border-danger { border-left: 4px solid #e74a3b; }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>

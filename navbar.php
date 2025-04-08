@@ -23,7 +23,9 @@
                         <a class="nav-link" href="student_dashboard.php">Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="my_applications.php">My Applications</a>
+                        <a class="nav-link" href="my_applications.php">
+                            <i class="fas fa-clipboard-list me-2"></i>My Applications
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="logout.php">Logout</a>

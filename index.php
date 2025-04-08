@@ -451,12 +451,6 @@
                     <li class="nav-item">
                         <a class="nav-link" href="company_login.php">Company Login</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="register_student.php">Student Registration</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="register_company.php">Company Registration</a>
-                    </li>
                 </ul>
             </div>
         </div>

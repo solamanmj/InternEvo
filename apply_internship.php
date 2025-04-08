@@ -1,99 +1,125 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 require_once 'config.php';
 
-// Check if student is logged in
-if (!isset($_SESSION['student_id'])) {
-    $_SESSION['error'] = "Please login as a student to apply";
+// Test database connection
+try {
+    $test = $conn->query("SELECT 1");
+} catch (PDOException $e) {
+    die("Database connection failed: " . $e->getMessage());
+}
+
+// Check if user is logged in
+if (!isset($_SESSION['logged_in']) || !isset($_SESSION['user_id'])) {
+    $_SESSION['redirect_url'] = $_SERVER['REQUEST_URI'];
     header("Location: login.php");
     exit();
 }
 
-// Get internship ID
-$internship_id = isset($_GET['id']) ? $_GET['id'] : 0;
+// Get internship ID from URL
+$internship_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 // Fetch internship details
 try {
     $stmt = $conn->prepare("
         SELECT i.*, cp.company_name 
-        FROM internships i
-        JOIN company_profiles cp ON i.company_id = cp.company_id
-        WHERE i.id = ? AND i.status = 'active'
+        FROM internships i 
+        JOIN company_profiles cp ON i.company_id = cp.company_id 
+        WHERE i.id = ?
     ");
     $stmt->execute([$internship_id]);
-    $internship = $stmt->fetch();
+    $internship = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$internship) {
-        $_SESSION['error'] = "Internship not found or no longer active";
         header("Location: home.php");
         exit();
     }
-
-    // Check if already applied
-    $stmt = $conn->prepare("
-        SELECT * FROM applications 
-        WHERE student_id = ? AND internship_id = ?
-    ");
-    $stmt->execute([$_SESSION['student_id'], $internship_id]);
-    if ($stmt->fetch()) {
-        $_SESSION['error'] = "You have already applied for this internship";
-        header("Location: view_internship.php?id=" . $internship_id);
-        exit();
-    }
 } catch(PDOException $e) {
-    $_SESSION['error'] = "Error: " . $e->getMessage();
     header("Location: home.php");
     exit();
 }
 
 // Handle form submission
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     try {
-        // Start transaction
-        $conn->beginTransaction();
+        // Debug: Print form data
+        error_log("Form submission data: " . print_r($_POST, true));
+        error_log("Session data: " . print_r($_SESSION, true));
 
-        // Handle resume upload
-        $resume_path = '';
-        if (isset($_FILES['resume']) && $_FILES['resume']['size'] > 0) {
-            $target_dir = "uploads/resumes/";
-            if (!file_exists($target_dir)) {
-                mkdir($target_dir, 0777, true);
-            }
-            
-            $file_extension = strtolower(pathinfo($_FILES["resume"]["name"], PATHINFO_EXTENSION));
-            $new_filename = "resume_" . $_SESSION['student_id'] . "_" . time() . "." . $file_extension;
-            $target_file = $target_dir . $new_filename;
-
-            if (move_uploaded_file($_FILES["resume"]["tmp_name"], $target_file)) {
-                $resume_path = $target_file;
-            } else {
-                throw new Exception("Failed to upload resume");
-            }
-        }
-
-        // Insert application
-        $stmt = $conn->prepare("
-            INSERT INTO applications (
-                student_id, internship_id, cover_letter, 
-                resume_path, status, applied_date
-            ) VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
+        // Check if already applied
+        $checkStmt = $conn->prepare("
+            SELECT id FROM internship_applications 
+            WHERE internship_id = ? AND student_id = ?
         ");
+        $checkStmt->execute([$internship_id, $_SESSION['user_id']]);
+        
+        if ($checkStmt->rowCount() > 0) {
+            $error = "You have already applied for this internship.";
+            error_log("Duplicate application attempted");
+        } else {
+            // Process file upload for resume
+            $resume = null;
+            if (isset($_FILES['resume']) && $_FILES['resume']['error'] == 0) {
+                // Debug: Print file upload data
+                error_log("File upload data: " . print_r($_FILES['resume'], true));
+                
+                $allowed = ['pdf', 'doc', 'docx'];
+                $filename = $_FILES['resume']['name'];
+                $filetype = pathinfo($filename, PATHINFO_EXTENSION);
+                
+                if (in_array(strtolower($filetype), $allowed)) {
+                    $newname = uniqid('resume_') . '.' . $filetype;
+                    $upload_dir = 'uploads/resumes/';
+                    
+                    if (!is_dir($upload_dir)) {
+                        mkdir($upload_dir, 0777, true);
+                    }
+                    
+                    if (move_uploaded_file($_FILES['resume']['tmp_name'], $upload_dir . $newname)) {
+                        $resume = $upload_dir . $newname;
+                    }
+                }
+            }
 
-        $stmt->execute([
-            $_SESSION['student_id'],
-            $internship_id,
-            $_POST['cover_letter'],
-            $resume_path
-        ]);
-
-        $conn->commit();
-        $_SESSION['success'] = "Application submitted successfully!";
-        header("Location: my_applications.php");
-        exit();
-
-    } catch(Exception $e) {
-        $conn->rollBack();
-        $_SESSION['error'] = "Error submitting application: " . $e->getMessage();
+            // Insert application with debug logging
+            $stmt = $conn->prepare("
+                INSERT INTO internship_applications (
+                    internship_id, 
+                    student_id, 
+                    expected_salary, 
+                    resume_path, 
+                    skills, 
+                    portfolio_url, 
+                    created_at, 
+                    status
+                ) VALUES (?, ?, ?, ?, ?, ?, NOW(), 'pending')
+            ");
+            
+            $params = [
+                $internship_id,
+                $_SESSION['user_id'],
+                $_POST['expected_salary'],
+                $resume,
+                $_POST['skills'],
+                $_POST['portfolio_url']
+            ];
+            
+            // Debug: Print insert parameters
+            error_log("Insert parameters: " . print_r($params, true));
+            
+            $stmt->execute($params);
+            
+            // Debug: Check if insert was successful
+            error_log("Insert ID: " . $conn->lastInsertId());
+            
+            $success = "Your application has been submitted successfully!";
+        }
+    } catch(PDOException $e) {
+        error_log("Application submission error: " . $e->getMessage());
+        $error = "An error occurred while submitting your application.";
     }
 }
 ?>
@@ -103,81 +129,90 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apply for Internship - InternEvo</title>
+    <title>Apply for Internship - <?php echo htmlspecialchars($internship['title']); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            background: #f8f9fc;
-        }
-        .application-card {
-            border: none;
-            border-radius: 15px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-        }
-        .internship-details {
-            background: #f8f9fa;
+        .form-section {
+            background: white;
+            padding: 30px;
             border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .required-field::after {
+            content: "*";
+            color: red;
+            margin-left: 4px;
         }
     </style>
 </head>
-<body>
+<body class="bg-light">
+    <?php include 'navbar.php'; ?>
+
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-8">
-                <div class="card application-card">
-                    <div class="card-body p-4">
-                        <h2 class="text-center mb-4">Apply for Internship</h2>
+                <div class="form-section">
+                    <h2 class="mb-4">Apply for <?php echo htmlspecialchars($internship['title']); ?></h2>
+                    <p class="text-muted mb-4">at <?php echo htmlspecialchars($internship['company_name']); ?></p>
 
-                        <div class="internship-details">
-                            <h5><?php echo htmlspecialchars($internship['title']); ?></h5>
-                            <p class="text-muted mb-2">
-                                <i class="fas fa-building me-2"></i>
-                                <?php echo htmlspecialchars($internship['company_name']); ?>
-                            </p>
-                            <div class="small text-muted">
-                                <i class="fas fa-map-marker-alt me-2"></i>
-                                <?php echo htmlspecialchars($internship['location']); ?>
-                                <span class="mx-2">|</span>
-                                <i class="fas fa-clock me-2"></i>
-                                <?php echo htmlspecialchars($internship['duration']); ?>
+                    <?php if (isset($error)): ?>
+                        <div class="alert alert-danger">
+                            <?php echo $error; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (isset($success)): ?>
+                        <div class="alert alert-success">
+                            <h4><i class="fas fa-check-circle me-2"></i>Success!</h4>
+                            <p class="mb-0"><?php echo $success; ?></p>
+                            <div class="mt-3">
+                                <a href="home.php" class="btn btn-primary">
+                                    <i class="fas fa-search me-2"></i>Browse More Internships
+                                </a>
                             </div>
                         </div>
-
-                        <?php if (isset($_SESSION['error'])): ?>
-                            <div class="alert alert-danger">
-                                <?php 
-                                echo $_SESSION['error'];
-                                unset($_SESSION['error']);
-                                ?>
-                            </div>
-                        <?php endif; ?>
-
+                    <?php else: ?>
                         <form method="POST" enctype="multipart/form-data">
+                            <!-- Skills -->
                             <div class="mb-3">
-                                <label class="form-label">Cover Letter</label>
-                                <textarea name="cover_letter" class="form-control" rows="6" required
-                                    placeholder="Explain why you're interested in this internship and what makes you a good fit..."></textarea>
+                                <label class="form-label">Relevant Skills <span class="text-danger">*</span></label>
+                                <input type="text" name="skills" class="form-control" required>
+                                <div class="form-text">List your relevant skills (comma separated)</div>
                             </div>
 
-                            <div class="mb-4">
-                                <label class="form-label">Resume (PDF only)</label>
-                                <input type="file" name="resume" class="form-control" accept=".pdf" required>
-                                <div class="form-text">Maximum file size: 5MB</div>
+                            <!-- Resume Upload -->
+                            <div class="mb-3">
+                                <label class="form-label">Resume <span class="text-danger">*</span></label>
+                                <input type="file" name="resume" class="form-control" accept=".pdf,.doc,.docx" required>
+                                <div class="form-text">Upload your resume (PDF, DOC, or DOCX format)</div>
                             </div>
+
+                            <!-- Portfolio URL -->
+                            <div class="mb-3">
+                                <label class="form-label">Portfolio URL</label>
+                                <input type="url" name="portfolio_url" class="form-control">
+                                <div class="form-text">Link to your portfolio or GitHub profile (optional)</div>
+                            </div>
+
+                            <!-- Expected Salary -->
+                            <div class="mb-3">
+                                <label class="form-label">Expected Stipend (₹/month) <span class="text-danger">*</span></label>
+                                <input type="number" name="expected_salary" class="form-control" required>
+                            </div>
+
+                            
 
                             <div class="d-grid gap-2">
                                 <button type="submit" class="btn btn-primary">
                                     <i class="fas fa-paper-plane me-2"></i>Submit Application
                                 </button>
-                                <a href="view_internship.php?id=<?php echo $internship_id; ?>" class="btn btn-light">
-                                    Cancel
+                                <a href="home.php" class="btn btn-light">
+                                    <i class="fas fa-arrow-left me-2"></i>Back to Internships
                                 </a>
                             </div>
                         </form>
-                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -185,4 +220,4 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-</html> 
+</html>
